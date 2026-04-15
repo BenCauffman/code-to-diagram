@@ -2,6 +2,8 @@
 
 `Diagram as Code` keeps one editable Markdown source file and one generated image in sync.
 
+Think of each workspace as a saved Mermaid source file plus its rendered image. `watch-diagram` is the live preview loop for that pair.
+
 ## Files
 
 - `system-diagram.md` is the source of truth.
@@ -35,17 +37,40 @@ Archiving preserves both the markdown source and the rendered output before rese
 
 ## Workspace Config
 
-When you run `install.sh`, it writes a `.diagram-as-code.env` file into the workspace you are configuring. That file stores the default source file, render output, and archive directory for that workspace.
+Run `diagram-workspace open` to reopen a workspace or `diagram-workspace new` to create one. It writes a `.diagram-as-code.env` file into the workspace you are configuring.
+Run `diagram` when you want one interactive menu for workspace selection plus render, watch, archive, and list actions.
+When you choose watch from that menu, it opens the active `system-diagram.md` in your OS editor and starts the live preview loop in the same workspace.
 
-The installer lets you:
+Each workspace uses the same root-level pair:
+
+- `system-diagram.md`
+- `diagram.png`
+- `past-diagrams/`
+
+The command lets you:
 
 - use the current directory
+- select an initialized workspace
 - select an existing folder
 - create a new folder
 
-If the workspace does not already have a starter `system-diagram.md`, the installer creates one for you.
+If the workspace does not already have a starter `system-diagram.md`, the command creates one for you.
 
 The runtime scripts search for that file in the current directory and then walk upward through parent directories, so you can launch the commands from subdirectories without losing the workspace settings.
+
+The command also keeps a registry at `~/.config/diagram-as-code/workspaces` so it can show initialized folders as numbered options the next time you run it.
+
+You can inspect that registry directly with:
+
+```bash
+list-workspaces
+```
+
+Or use the unified interactive launcher:
+
+```bash
+diagram
+```
 
 ## Mental Model
 

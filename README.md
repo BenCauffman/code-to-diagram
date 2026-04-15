@@ -2,6 +2,8 @@
 
 Diagram as Code is a small portable workflow for editing Mermaid diagrams in Markdown, rendering them to images, watching for changes, and archiving stable snapshots.
 
+Each workspace is a saved Mermaid source file plus its rendered image, so you can come back later, reopen it, and keep editing with live preview.
+
 ## Install
 
 1. Clone or download this repository.
@@ -11,12 +13,9 @@ Diagram as Code is a small portable workflow for editing Mermaid diagrams in Mar
 ./install.sh
 ```
 
-3. When prompted, choose a diagram workspace:
-   - use the current directory
-   - select an existing folder
-   - create a new folder
-4. The installer writes a workspace config file and starter `system-diagram.md` if needed.
-5. Make sure `~/bin` is on your `PATH` if your shell has not loaded it yet.
+3. Make sure `~/bin` is on your `PATH` if your shell has not loaded it yet.
+4. Use `diagram-workspace open` to reopen a workspace or `diagram-workspace new` to create one.
+5. Use `diagram` for the interactive launcher that can open workspaces, render, watch, and archive.
 
 ## Requirements
 
@@ -50,6 +49,28 @@ Archive the current diagram and reset the working file:
 ```bash
 archive-diagram
 ```
+
+List initialized workspaces:
+
+```bash
+list-workspaces
+```
+
+Create or edit a workspace:
+
+```bash
+diagram-workspace open
+diagram-workspace new
+diagram-workspace list
+```
+
+Use the interactive launcher for the full loop:
+
+```bash
+diagram
+```
+
+In watch mode, the launcher also opens the active `system-diagram.md` in your OS editor so you can edit and preview at the same time.
 
 You can also use the Makefile from the repository root:
 
@@ -86,7 +107,13 @@ These environment variables keep the workflow portable:
 - `DIAGRAM_OUTPUT` defaults to `diagram.png`
 - `DIAGRAM_ARCHIVE_DIR` defaults to `past-diagrams`
 
-The installer writes a workspace config file at `.diagram-as-code.env` in the folder you choose. The scripts automatically discover it from the current directory or any parent directory.
+`diagram-workspace` writes a workspace config file at `.diagram-as-code.env` in the folder you choose. Each workspace uses the same file pair:
+
+- `system-diagram.md`
+- `diagram.png`
+- `past-diagrams/`
+
+It also keeps a small registry at `~/.config/diagram-as-code/workspaces`, so `diagram-workspace` and `list-workspaces` can show already-initialized workspaces.
 
 ## Repository Layout
 

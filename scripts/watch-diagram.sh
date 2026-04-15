@@ -29,11 +29,15 @@ resolve_path() {
   esac
 }
 
+workspace_item_name() {
+  basename -- "$1"
+}
+
 workspace_dir="$(find_workspace_config_dir)"
 DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-system-diagram.md}"
 DIAGRAM_OUTPUT_RAW="${DIAGRAM_OUTPUT:-diagram.png}"
-DIAGRAM_FILE="$(resolve_path "$workspace_dir" "$DIAGRAM_FILE_RAW")"
-DIAGRAM_OUTPUT="$(resolve_path "$workspace_dir" "$DIAGRAM_OUTPUT_RAW")"
+DIAGRAM_FILE="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_FILE_RAW")")"
+DIAGRAM_OUTPUT="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_OUTPUT_RAW")")"
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 render_bin="${script_dir}/render-diagram"
 render_script="${script_dir}/render-diagram.sh"

@@ -29,6 +29,10 @@ resolve_path() {
   esac
 }
 
+workspace_item_name() {
+  basename -- "$1"
+}
+
 starter_template() {
   cat <<'EOF'
 # System Diagram
@@ -53,9 +57,9 @@ DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-system-diagram.md}"
 DIAGRAM_OUTPUT_RAW="${DIAGRAM_OUTPUT:-diagram.png}"
 DIAGRAM_ARCHIVE_DIR_RAW="${DIAGRAM_ARCHIVE_DIR:-past-diagrams}"
 
-DIAGRAM_FILE="$(resolve_path "$workspace_dir" "$DIAGRAM_FILE_RAW")"
-DIAGRAM_OUTPUT="$(resolve_path "$workspace_dir" "$DIAGRAM_OUTPUT_RAW")"
-DIAGRAM_ARCHIVE_DIR="$(resolve_path "$workspace_dir" "$DIAGRAM_ARCHIVE_DIR_RAW")"
+DIAGRAM_FILE="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_FILE_RAW")")"
+DIAGRAM_OUTPUT="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_OUTPUT_RAW")")"
+DIAGRAM_ARCHIVE_DIR="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_ARCHIVE_DIR_RAW")")"
 
 if [[ ! -f "$DIAGRAM_FILE" ]]; then
   fail "missing diagram file: $DIAGRAM_FILE"

@@ -1,0 +1,16 @@
+{
+  "name": "diagram-as-code",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portable diagram-as-code workflow tooling",
+  "scripts": {
+    "test": "echo \"No tests defined\""
+  },
+  "keywords": [
+    "diagram",
+    "mermaid",
+    "workflow"
+  ],
+  "author": "",
+  "license": "MIT"
+}

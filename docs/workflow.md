@@ -33,6 +33,20 @@ Archiving preserves both the markdown source and the rendered output before rese
 - `DIAGRAM_OUTPUT` overrides the generated image path.
 - `DIAGRAM_ARCHIVE_DIR` overrides the archive destination.
 
+## Workspace Config
+
+When you run `install.sh`, it writes a `.diagram-as-code.env` file into the workspace you are configuring. That file stores the default source file, render output, and archive directory for that workspace.
+
+The installer lets you:
+
+- use the current directory
+- select an existing folder
+- create a new folder
+
+If the workspace does not already have a starter `system-diagram.md`, the installer creates one for you.
+
+The runtime scripts search for that file in the current directory and then walk upward through parent directories, so you can launch the commands from subdirectories without losing the workspace settings.
+
 ## Mental Model
 
 ```mermaid

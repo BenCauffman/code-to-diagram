@@ -6,6 +6,29 @@ fail() {
   exit 1
 }
 
+find_workspace_config_dir() {
+  local dir="$PWD"
+  while true; do
+    if [[ -f "$dir/.diagram-as-code.env" ]]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    [[ "$dir" == "/" ]] && break
+    dir="$(dirname -- "$dir")"
+  done
+  printf '%s\n' "$PWD"
+}
+
+resolve_path() {
+  local base_dir="$1"
+  local candidate="$2"
+
+  case "$candidate" in
+    /*) printf '%s\n' "$candidate" ;;
+    *) printf '%s/%s\n' "$base_dir" "$candidate" ;;
+  esac
+}
+
 starter_template() {
   cat <<'EOF'
 # System Diagram
@@ -25,9 +48,14 @@ sanitize_title() {
     | sed 's/-$//'
 }
 
-DIAGRAM_FILE="${DIAGRAM_FILE:-system-diagram.md}"
-DIAGRAM_OUTPUT="${DIAGRAM_OUTPUT:-diagram.png}"
-DIAGRAM_ARCHIVE_DIR="${DIAGRAM_ARCHIVE_DIR:-past-diagrams}"
+workspace_dir="$(find_workspace_config_dir)"
+DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-system-diagram.md}"
+DIAGRAM_OUTPUT_RAW="${DIAGRAM_OUTPUT:-diagram.png}"
+DIAGRAM_ARCHIVE_DIR_RAW="${DIAGRAM_ARCHIVE_DIR:-past-diagrams}"
+
+DIAGRAM_FILE="$(resolve_path "$workspace_dir" "$DIAGRAM_FILE_RAW")"
+DIAGRAM_OUTPUT="$(resolve_path "$workspace_dir" "$DIAGRAM_OUTPUT_RAW")"
+DIAGRAM_ARCHIVE_DIR="$(resolve_path "$workspace_dir" "$DIAGRAM_ARCHIVE_DIR_RAW")"
 
 if [[ ! -f "$DIAGRAM_FILE" ]]; then
   fail "missing diagram file: $DIAGRAM_FILE"

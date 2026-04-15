@@ -1,5 +1,6 @@
 diagram.png
 diagram.svg
 past-diagrams/
+.diagram-as-code.env
 node_modules/
 .DS_Store

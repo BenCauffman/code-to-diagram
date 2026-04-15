@@ -6,8 +6,35 @@ fail() {
   exit 1
 }
 
-DIAGRAM_FILE="${DIAGRAM_FILE:-system-diagram.md}"
-DIAGRAM_OUTPUT="${DIAGRAM_OUTPUT:-diagram.png}"
+find_workspace_config_dir() {
+  local dir="$PWD"
+  while true; do
+    if [[ -f "$dir/.diagram-as-code.env" ]]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    [[ "$dir" == "/" ]] && break
+    dir="$(dirname -- "$dir")"
+  done
+  printf '%s\n' "$PWD"
+}
+
+resolve_path() {
+  local base_dir="$1"
+  local candidate="$2"
+
+  case "$candidate" in
+    /*) printf '%s\n' "$candidate" ;;
+    *) printf '%s/%s\n' "$base_dir" "$candidate" ;;
+  esac
+}
+
+workspace_dir="$(find_workspace_config_dir)"
+DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-system-diagram.md}"
+DIAGRAM_OUTPUT_RAW="${DIAGRAM_OUTPUT:-diagram.png}"
+
+DIAGRAM_FILE="$(resolve_path "$workspace_dir" "$DIAGRAM_FILE_RAW")"
+DIAGRAM_OUTPUT="$(resolve_path "$workspace_dir" "$DIAGRAM_OUTPUT_RAW")"
 
 if [[ ! -f "$DIAGRAM_FILE" ]]; then
   fail "missing diagram file: $DIAGRAM_FILE"
@@ -34,7 +61,8 @@ if [[ ! -s "$tmp_mermaid" ]]; then
 fi
 
 output_ext="${DIAGRAM_OUTPUT##*.}"
-case "${output_ext,,}" in
+output_ext_lower="$(printf '%s' "$output_ext" | tr '[:upper:]' '[:lower:]')"
+case "$output_ext_lower" in
   png|svg) ;;
   *)
     fail "unsupported output format: $DIAGRAM_OUTPUT"

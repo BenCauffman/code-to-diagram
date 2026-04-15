@@ -11,7 +11,12 @@ Diagram as Code is a small portable workflow for editing Mermaid diagrams in Mar
 ./install.sh
 ```
 
-3. Make sure `~/bin` is on your `PATH` if your shell has not loaded it yet.
+3. When prompted, choose a diagram workspace:
+   - use the current directory
+   - select an existing folder
+   - create a new folder
+4. The installer writes a workspace config file and starter `system-diagram.md` if needed.
+5. Make sure `~/bin` is on your `PATH` if your shell has not loaded it yet.
 
 ## Requirements
 
@@ -80,6 +85,8 @@ These environment variables keep the workflow portable:
 - `DIAGRAM_FILE` defaults to `system-diagram.md`
 - `DIAGRAM_OUTPUT` defaults to `diagram.png`
 - `DIAGRAM_ARCHIVE_DIR` defaults to `past-diagrams`
+
+The installer writes a workspace config file at `.diagram-as-code.env` in the folder you choose. The scripts automatically discover it from the current directory or any parent directory.
 
 ## Repository Layout
 

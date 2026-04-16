@@ -1,60 +1,48 @@
 # Workflow
 
-`Diagram as Code` keeps one editable Markdown source file and one generated image in sync.
+`Diagram as Code` keeps one editable node workspace file and one generated image in sync, inside a live studio that also shows the full workspace graph.
 
-Think of each workspace as a saved Mermaid source file plus its rendered image. `watch-diagram` is the live preview loop for that pair.
+Think of each workspace as a saved node model plus its rendered image. Opening a workspace takes you straight into the live workspace studio, which shows the editor, preview, workspace list, and connections together.
 
 ## Files
 
-- `system-diagram.md` is the source of truth.
+- `workspace.node.json` is the source of truth for new node workspaces.
 - `diagram.png` is the default rendered artifact.
 - `past-diagrams/` stores archived snapshots.
 
 ## Typical Loop
 
-1. Edit `system-diagram.md`.
-2. Run `render-diagram` to regenerate `diagram.png`.
-3. Use `watch-diagram` when you want automatic rerenders.
-4. Run `archive-diagram` when the diagram reaches a stable checkpoint.
-5. Keep iterating in the starter template after the archive is saved.
+1. Open a workspace.
+2. Edit `workspace.node.json`.
+3. Watch `diagram.png` update alongside the source in the live studio.
+4. Use the workspace list to switch nodes and the connection form to link them together.
+5. Keep iterating in the node workspace as the preview refreshes.
 
 ## Archiving
 
-Archiving preserves both the markdown source and the rendered output before resetting the active file back to the starter template. That keeps the working diagram focused while still retaining the history.
-
-## Render Path
-
-- `render-diagram.sh` reads the first Mermaid code block in `system-diagram.md`.
-- It renders at high resolution with `mmdc`.
-- It respects `PUPPETEER_EXECUTABLE_PATH` when Puppeteer needs an explicit browser path.
-- It supports `diagram.png` by default and `diagram.svg` when you choose that extension.
-
-## Environment Variables
-
-- `DIAGRAM_FILE` overrides the source markdown file.
-- `DIAGRAM_OUTPUT` overrides the generated image path.
-- `DIAGRAM_ARCHIVE_DIR` overrides the archive destination.
+The studio stays in sync automatically because opening the workspace starts the live editing server for you.
 
 ## Workspace Config
 
-Run `diagram-workspace open` to reopen a workspace or `diagram-workspace new` to create one. It writes a `.diagram-as-code.env` file into the workspace you are configuring.
-Run `diagram` when you want one interactive menu for workspace selection plus render, watch, archive, and list actions.
-When you choose watch from that menu, it opens the active `system-diagram.md` in your OS editor and starts the live preview loop in the same workspace.
+Run `diagram-workspace open` to search saved workspaces, `diagram-workspace new` to browse folders and create one, or `diagram-workspace delete` to remove one. It writes a `.diagram-as-code.env` file into the workspace you are configuring.
+That bootstrap step also creates the starter `workspace.node.json`, makes `past-diagrams/`, and renders the initial output file so the workspace is ready to preview immediately.
+Run `diagram` when you want one interactive menu for workspace selection plus create, open, delete, and list actions.
 
 Each workspace uses the same root-level pair:
 
-- `system-diagram.md`
+- `workspace.node.json`
 - `diagram.png`
+- `workspace-studio.html`
 - `past-diagrams/`
 
 The command lets you:
 
-- use the current directory
-- select an initialized workspace
-- select an existing folder
-- create a new folder
+- search initialized workspaces by name or path
+- browse folders and create a new workspace
+- delete an initialized workspace
+- open the editable studio for the source, preview, workspace list, and graph
 
-If the workspace does not already have a starter `system-diagram.md`, the command creates one for you.
+If the workspace does not already have a starter node file, the command creates one for you.
 
 The runtime scripts search for that file in the current directory and then walk upward through parent directories, so you can launch the commands from subdirectories without losing the workspace settings.
 
@@ -76,9 +64,8 @@ diagram
 
 ```mermaid
 flowchart TD
-  Edit[Edit system-diagram.md] --> Render[render-diagram]
-  Render --> Output[diagram.png or diagram.svg]
-  Output --> Archive[archive-diagram]
-  Archive --> Reset[Starter template]
-  Reset --> Edit
+  Open[Open workspace] --> Studio[Live studio]
+  Studio --> Source[workspace.node.json]
+  Studio --> Output[diagram.png]
+  Studio --> Graph[all workspaces + connections]
 ```

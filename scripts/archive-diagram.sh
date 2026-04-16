@@ -33,6 +33,25 @@ workspace_item_name() {
   basename -- "$1"
 }
 
+resolve_source_file() {
+  local workspace_dir="$1"
+  local candidate="$2"
+  local source_file
+
+  source_file="$(resolve_path "$workspace_dir" "$(workspace_item_name "$candidate")")"
+  if [[ -f "$source_file" ]]; then
+    printf '%s\n' "$source_file"
+    return 0
+  fi
+
+  if [[ "$source_file" == *workspace.node.json ]] && [[ -f "${workspace_dir}/system-diagram.md" ]]; then
+    printf '%s\n' "${workspace_dir}/system-diagram.md"
+    return 0
+  fi
+
+  printf '%s\n' "$source_file"
+}
+
 starter_template() {
   cat <<'EOF'
 # System Diagram
@@ -41,6 +60,42 @@ starter_template() {
 flowchart TD
   A[Start here] --> B[Edit this diagram]
 ```
+EOF
+}
+
+starter_node_template() {
+  local node_title="$1"
+  local node_id="$2"
+
+  cat <<EOF
+{
+  "schemaVersion": 1,
+  "workspaceId": "$node_id",
+  "node": {
+    "id": "$node_id",
+    "title": "$node_title",
+    "summary": "Workspace node for $node_title.",
+    "activeLayer": 0,
+    "maxDepth": 2,
+    "layers": [
+      { "level": 0, "kind": "shell", "visible": ["title"] },
+      { "level": 1, "kind": "summary", "visible": ["title", "summary"] },
+      { "level": 2, "kind": "inner", "visible": ["title", "summary", "sections"] }
+    ],
+    "sections": [
+      {
+        "id": "inner-view",
+        "title": "Inner View",
+        "body": "Add details here to reveal the inside of the node when you zoom in."
+      }
+    ],
+    "children": [],
+    "constraints": {
+      "sameIdentityAcrossLayers": true,
+      "noFreeformExpansion": true
+    }
+  }
+}
 EOF
 }
 
@@ -53,11 +108,11 @@ sanitize_title() {
 }
 
 workspace_dir="$(find_workspace_config_dir)"
-DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-system-diagram.md}"
+DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-workspace.node.json}"
 DIAGRAM_OUTPUT_RAW="${DIAGRAM_OUTPUT:-diagram.png}"
 DIAGRAM_ARCHIVE_DIR_RAW="${DIAGRAM_ARCHIVE_DIR:-past-diagrams}"
 
-DIAGRAM_FILE="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_FILE_RAW")")"
+DIAGRAM_FILE="$(resolve_source_file "$workspace_dir" "$DIAGRAM_FILE_RAW")"
 DIAGRAM_OUTPUT="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_OUTPUT_RAW")")"
 DIAGRAM_ARCHIVE_DIR="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_ARCHIVE_DIR_RAW")")"
 
@@ -90,13 +145,20 @@ archive_basename="${timestamp}-${slug}"
 archive_ext="${DIAGRAM_OUTPUT##*.}"
 archive_dir="${DIAGRAM_ARCHIVE_DIR}"
 archive_diagram="${archive_dir}/${archive_basename}-diagram.${archive_ext}"
-archive_markdown="${archive_dir}/${archive_basename}-system-diagram.md"
+archive_source="${archive_dir}/${archive_basename}-$(basename -- "$DIAGRAM_FILE")"
 
 mkdir -p "$archive_dir"
 
-cp "$DIAGRAM_FILE" "$archive_markdown"
+cp "$DIAGRAM_FILE" "$archive_source"
 cp "$DIAGRAM_OUTPUT" "$archive_diagram"
-starter_template > "$DIAGRAM_FILE"
+case "$DIAGRAM_FILE" in
+  *.json)
+    starter_node_template "$default_title" "$slug" > "$DIAGRAM_FILE"
+    ;;
+  *)
+    starter_template > "$DIAGRAM_FILE"
+    ;;
+esac
 
 printf 'archived %s and %s to %s\n' "$DIAGRAM_FILE" "$DIAGRAM_OUTPUT" "$archive_dir"
 printf 'reset %s to the starter template\n' "$DIAGRAM_FILE"

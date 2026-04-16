@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 fail() {
   printf 'render-diagram: %s\n' "$1" >&2
   exit 1
@@ -33,11 +35,30 @@ workspace_item_name() {
   basename -- "$1"
 }
 
+resolve_source_file() {
+  local workspace_dir="$1"
+  local candidate="$2"
+  local source_file
+
+  source_file="$(resolve_path "$workspace_dir" "$(workspace_item_name "$candidate")")"
+  if [[ -f "$source_file" ]]; then
+    printf '%s\n' "$source_file"
+    return 0
+  fi
+
+  if [[ "$source_file" == *workspace.node.json ]] && [[ -f "${workspace_dir}/system-diagram.md" ]]; then
+    printf '%s\n' "${workspace_dir}/system-diagram.md"
+    return 0
+  fi
+
+  printf '%s\n' "$source_file"
+}
+
 workspace_dir="$(find_workspace_config_dir)"
-DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-system-diagram.md}"
+DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-workspace.node.json}"
 DIAGRAM_OUTPUT_RAW="${DIAGRAM_OUTPUT:-diagram.png}"
 
-DIAGRAM_FILE="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_FILE_RAW")")"
+DIAGRAM_FILE="$(resolve_source_file "$workspace_dir" "$DIAGRAM_FILE_RAW")"
 DIAGRAM_OUTPUT="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_OUTPUT_RAW")")"
 
 if [[ ! -f "$DIAGRAM_FILE" ]]; then
@@ -54,15 +75,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-awk '
-  /^```mermaid[[:space:]]*$/ { in_block = 1; next }
-  in_block && /^```[[:space:]]*$/ { exit }
-  in_block { print }
-' "$DIAGRAM_FILE" > "$tmp_mermaid"
-
-if [[ ! -s "$tmp_mermaid" ]]; then
-  fail "no Mermaid block found in: $DIAGRAM_FILE"
-fi
+node "${script_dir}/source-to-mermaid.mjs" "$DIAGRAM_FILE" > "$tmp_mermaid"
 
 output_ext="${DIAGRAM_OUTPUT##*.}"
 output_ext_lower="$(printf '%s' "$output_ext" | tr '[:upper:]' '[:lower:]')"
@@ -76,5 +89,7 @@ esac
 mkdir -p "$(dirname -- "$DIAGRAM_OUTPUT")"
 
 mmdc -i "$tmp_mermaid" -o "$DIAGRAM_OUTPUT" -s 3 -w 2000
+
+node "${script_dir}/workspace-studio.mjs" "$DIAGRAM_FILE" "$DIAGRAM_OUTPUT" "$workspace_dir" >/dev/null
 
 printf 'rendered %s -> %s\n' "$DIAGRAM_FILE" "$DIAGRAM_OUTPUT"

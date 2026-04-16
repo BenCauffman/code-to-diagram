@@ -33,10 +33,46 @@ workspace_item_name() {
   basename -- "$1"
 }
 
+resolve_source_file() {
+  local workspace_dir="$1"
+  local candidate="$2"
+  local source_file
+
+  source_file="$(resolve_path "$workspace_dir" "$(workspace_item_name "$candidate")")"
+  if [[ -f "$source_file" ]]; then
+    printf '%s\n' "$source_file"
+    return 0
+  fi
+
+  if [[ "$source_file" == *workspace.node.json ]] && [[ -f "${workspace_dir}/system-diagram.md" ]]; then
+    printf '%s\n' "${workspace_dir}/system-diagram.md"
+    return 0
+  fi
+
+  printf '%s\n' "$source_file"
+}
+
+open_on_macos() {
+  local file_path="$1"
+  if [[ "$OSTYPE" == darwin* ]]; then
+    open "$file_path" >/dev/null 2>&1 &
+    return 0
+  fi
+  if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$file_path" >/dev/null 2>&1 &
+    return 0
+  fi
+  if command -v gio >/dev/null 2>&1; then
+    gio open "$file_path" >/dev/null 2>&1 &
+    return 0
+  fi
+  return 1
+}
+
 workspace_dir="$(find_workspace_config_dir)"
-DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-system-diagram.md}"
+DIAGRAM_FILE_RAW="${DIAGRAM_FILE:-workspace.node.json}"
 DIAGRAM_OUTPUT_RAW="${DIAGRAM_OUTPUT:-diagram.png}"
-DIAGRAM_FILE="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_FILE_RAW")")"
+DIAGRAM_FILE="$(resolve_source_file "$workspace_dir" "$DIAGRAM_FILE_RAW")"
 DIAGRAM_OUTPUT="$(resolve_path "$workspace_dir" "$(workspace_item_name "$DIAGRAM_OUTPUT_RAW")")"
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 render_bin="${script_dir}/render-diagram"
@@ -70,6 +106,12 @@ printf 'watch-diagram: file=%s\n' "$DIAGRAM_FILE"
 printf 'watch-diagram: output=%s\n' "$DIAGRAM_OUTPUT"
 printf 'watch-diagram: renderer=%s\n' "$render_exec"
 render_now
+
+STUDIO_FILE="${workspace_dir}/workspace-studio.html"
+
+if [[ -f "$STUDIO_FILE" ]] && open_on_macos "$STUDIO_FILE"; then
+  printf 'watch-diagram: opened studio view\n'
+fi
 
 exec nodemon \
   --legacy-watch \

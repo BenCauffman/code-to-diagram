@@ -1,8 +1,8 @@
 # Diagram as Code
 
-Diagram as Code is a small portable workflow for editing Mermaid diagrams in Markdown, rendering them to images, watching for changes, and archiving stable snapshots.
+Diagram as Code is a small portable workflow for editing node workspaces in a live split studio.
 
-Each workspace is a saved Mermaid source file plus its rendered image, so you can come back later, reopen it, and keep editing with live preview.
+Each workspace is a saved node model plus its rendered image, so you can come back later, reopen it, and keep editing with live preview.
 
 ## Install
 
@@ -14,8 +14,9 @@ Each workspace is a saved Mermaid source file plus its rendered image, so you ca
 ```
 
 3. Make sure `~/bin` is on your `PATH` if your shell has not loaded it yet.
-4. Use `diagram-workspace open` to reopen a workspace or `diagram-workspace new` to create one.
-5. Use `diagram` for the interactive launcher that can open workspaces, render, watch, and archive.
+4. Use `diagram-workspace open` to search saved workspaces, `diagram-workspace new` to browse folders and create one, or `diagram-workspace delete` to remove one.
+5. Opening or creating a workspace now launches the live studio right away, with the source on one side, the rendered preview on the other, and the workspace graph alongside it.
+6. Use `diagram` for the interactive launcher that can open workspaces, create one, delete one, or list saved workspaces.
 
 ## Requirements
 
@@ -32,35 +33,18 @@ export PUPPETEER_EXECUTABLE_PATH="/path/to/chrome"
 
 ## Usage
 
-Render the current diagram:
-
-```bash
-render-diagram
-```
-
-Watch for changes and rerender automatically:
-
-```bash
-watch-diagram
-```
-
-Archive the current diagram and reset the working file:
-
-```bash
-archive-diagram
-```
-
 List initialized workspaces:
 
 ```bash
 list-workspaces
 ```
 
-Create or edit a workspace:
+Create, open, or delete a workspace:
 
 ```bash
 diagram-workspace open
 diagram-workspace new
+diagram-workspace delete
 diagram-workspace list
 ```
 
@@ -70,29 +54,24 @@ Use the interactive launcher for the full loop:
 diagram
 ```
 
-In watch mode, the launcher also opens the active `system-diagram.md` in your OS editor so you can edit and preview at the same time.
+If you forget the available commands, run `diagram --help` or `diagram-workspace --help`.
 
-You can also use the Makefile from the repository root:
-
-```bash
-make render
-make watch
-make archive
-```
+Opening a workspace launches the live studio so you can edit the source, see the preview update, and connect workspaces together from one place.
 
 ## Example Mermaid Diagram
 
 ```mermaid
 flowchart TD
-  Edit[Edit system-diagram.md] --> Render[render-diagram]
-  Render --> Image[diagram.png]
-  Image --> Archive[archive-diagram]
+  Open[Open workspace] --> Studio[Live studio]
+  Studio --> Source[workspace.node.json]
+  Studio --> Image[diagram.png]
+  Studio --> Graph[all workspaces + connections]
 ```
 
 ## Workflow
 
-1. Start from `templates/system-diagram.md`.
-2. Edit `system-diagram.md` in any workspace.
+1. Start from a workspace node JSON file.
+2. Edit `workspace.node.json` in any node workspace.
 3. Render to `diagram.png` or `diagram.svg`.
 4. Watch the file while iterating.
 5. Archive a stable version into `past-diagrams/`.
@@ -103,15 +82,20 @@ See `docs/workflow.md` for the full flow.
 
 These environment variables keep the workflow portable:
 
-- `DIAGRAM_FILE` defaults to `system-diagram.md`
+- `DIAGRAM_FILE` defaults to `workspace.node.json`
 - `DIAGRAM_OUTPUT` defaults to `diagram.png`
 - `DIAGRAM_ARCHIVE_DIR` defaults to `past-diagrams`
 
-`diagram-workspace` writes a workspace config file at `.diagram-as-code.env` in the folder you choose. Each workspace uses the same file pair:
+`diagram-workspace` writes a workspace config file at `.diagram-as-code.env` in the folder you choose. New workspaces use the same file pair:
 
-- `system-diagram.md`
+- `workspace.node.json`
 - `diagram.png`
+- `workspace-studio.html`
 - `past-diagrams/`
+
+When you create or open a workspace, the starter node JSON is written and rendered right away so the output file is ready immediately.
+
+Legacy workspaces may still use `system-diagram.md`, but the node workspace model is now the default.
 
 It also keeps a small registry at `~/.config/diagram-as-code/workspaces`, so `diagram-workspace` and `list-workspaces` can show already-initialized workspaces.
 

@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import {
   addWorkspaceConnection,
+  clearWorkspace,
+  createWorkspaceNode,
   describeWorkspaceSnapshot,
   readRegistry,
   readWorkspaceGraph,
   readWorkspaceSnapshot,
   readWorkspaceSummaries,
   renderWorkspacePreview,
+  setWorkspaceZoomLevel,
 } from './workspace-core.mjs';
 
 function escapeHtml(value) {
@@ -269,6 +270,27 @@ function studioHtml(initialWorkspaceDir) {
         gap: 8px;
         margin-bottom: 12px;
       }
+      .layer-controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      .layer-button.active {
+        border-color: var(--good);
+        background: linear-gradient(180deg, rgba(123, 224, 164, 0.22), rgba(123, 224, 164, 0.08));
+      }
+      .zoombar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .zoom-state {
+        min-width: 110px;
+        color: var(--muted);
+        font-size: 12px;
+      }
       select, input, textarea, button {
         font: inherit;
       }
@@ -298,6 +320,50 @@ function studioHtml(initialWorkspaceDir) {
       .grid {
         display: grid;
         gap: 12px;
+      }
+      .graph-wrap {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: radial-gradient(circle at center, rgba(143, 211, 255, 0.08), transparent 55%), var(--panel-2);
+        min-height: 280px;
+        overflow: hidden;
+      }
+      .graph-wrap svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .graph-node {
+        cursor: pointer;
+        transition: transform 120ms ease, filter 120ms ease;
+      }
+      .graph-node:hover {
+        filter: brightness(1.08);
+      }
+      .graph-node.active rect {
+        stroke: var(--good);
+        stroke-width: 2.2;
+      }
+      .graph-link {
+        stroke: rgba(159, 172, 216, 0.55);
+        stroke-width: 2;
+      }
+      .graph-link.active {
+        stroke: var(--accent);
+        stroke-width: 2.6;
+      }
+      .graph-label {
+        fill: var(--text);
+        font-size: 12px;
+        font-weight: 700;
+        text-anchor: middle;
+        pointer-events: none;
+      }
+      .graph-sub {
+        fill: var(--muted);
+        font-size: 10px;
+        text-anchor: middle;
+        pointer-events: none;
       }
       .card {
         border: 1px solid var(--border);
@@ -348,6 +414,11 @@ function studioHtml(initialWorkspaceDir) {
         grid-template-columns: 1fr 1fr;
         gap: 8px;
       }
+      .row-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+      }
       .connections li {
         list-style: none;
         padding: 8px 10px;
@@ -373,11 +444,20 @@ function studioHtml(initialWorkspaceDir) {
       <section class="panel">
         <div class="panel-head">
           <h2>Editor</h2>
-          <button id="saveBtn" type="button">Save & Render</button>
+          <div class="toolbar">
+            <button id="zoomOutBtn" type="button">Zoom Out</button>
+            <button id="zoomInBtn" type="button">Zoom In</button>
+            <button id="saveBtn" type="button">Save & Render</button>
+            <button id="clearBtn" type="button">Clear Workspace</button>
+          </div>
         </div>
         <div class="panel-body">
           <div class="toolbar">
             <select id="workspacePicker"></select>
+          </div>
+          <div class="layer-controls" id="layerControls"></div>
+          <div class="zoombar">
+            <div id="zoomState" class="zoom-state">Zoom unavailable</div>
           </div>
           <div id="workspaceDetails" class="muted" style="margin-bottom: 12px;"></div>
           <textarea id="sourceEditor" spellcheck="false"></textarea>
@@ -405,7 +485,22 @@ function studioHtml(initialWorkspaceDir) {
           <span id="workspaceCount" class="muted"></span>
         </div>
         <div class="panel-body">
+          <div class="section" style="margin-top: 0; padding-top: 0; border-top: 0;">
+            <div class="muted" style="margin-bottom: 8px;">Workspace graph</div>
+            <div id="graphWrap" class="graph-wrap"></div>
+          </div>
           <div id="workspaceCards" class="grid"></div>
+          <div class="section">
+            <h2 style="margin-bottom: 12px;">Create Node</h2>
+            <form id="newNodeForm" class="grid">
+              <div class="row-3">
+                <input id="newNodeTitle" placeholder="Node title" />
+                <input id="newNodeSummary" placeholder="Node summary" />
+                <input id="newNodeParent" placeholder="Parent folder" />
+              </div>
+              <button type="submit">Create Workspace Node</button>
+            </form>
+          </div>
           <div class="section">
             <h2 style="margin-bottom: 12px;">Connect Nodes</h2>
             <form id="connectForm" class="grid">
@@ -443,18 +538,28 @@ function studioHtml(initialWorkspaceDir) {
         workspacePicker: document.getElementById('workspacePicker'),
         workspaceDetails: document.getElementById('workspaceDetails'),
         sourceEditor: document.getElementById('sourceEditor'),
+        zoomOutBtn: document.getElementById('zoomOutBtn'),
+        zoomInBtn: document.getElementById('zoomInBtn'),
         saveBtn: document.getElementById('saveBtn'),
+        clearBtn: document.getElementById('clearBtn'),
         saveMessage: document.getElementById('saveMessage'),
+        layerControls: document.getElementById('layerControls'),
+        zoomState: document.getElementById('zoomState'),
         previewImage: document.getElementById('previewImage'),
         previewWrap: document.getElementById('previewWrap'),
         workspaceCards: document.getElementById('workspaceCards'),
         workspaceCount: document.getElementById('workspaceCount'),
+        newNodeForm: document.getElementById('newNodeForm'),
+        newNodeTitle: document.getElementById('newNodeTitle'),
+        newNodeSummary: document.getElementById('newNodeSummary'),
+        newNodeParent: document.getElementById('newNodeParent'),
         connectForm: document.getElementById('connectForm'),
         connectFrom: document.getElementById('connectFrom'),
         connectTo: document.getElementById('connectTo'),
         connectLabel: document.getElementById('connectLabel'),
         connectionList: document.getElementById('connectionList'),
         edgeList: document.getElementById('edgeList'),
+        graphWrap: document.getElementById('graphWrap'),
       };
 
       async function fetchState(workspaceDir) {
@@ -467,6 +572,10 @@ function studioHtml(initialWorkspaceDir) {
 
       function workspaceLabel(workspace) {
         return workspace.title || workspace.workspaceDir.split(/[\\/]/).pop();
+      }
+
+      function parentFolder(workspaceDir) {
+        return String(workspaceDir ?? '').replace(/[\\/][^\\/]+$/, '');
       }
 
       function renderWorkspaceCards(payload) {
@@ -504,6 +613,82 @@ function studioHtml(initialWorkspaceDir) {
         }
       }
 
+      function renderLayerControls(payload) {
+        if (!payload.selectedWorkspace || payload.selectedWorkspace.sourceKind !== 'node') {
+          els.layerControls.innerHTML = '<span class="muted">Zoom controls appear for node workspaces.</span>';
+          return;
+        }
+
+        const active = Number.isInteger(payload.selectedWorkspace.activeLayer) ? payload.selectedWorkspace.activeLayer : 0;
+        const maxDepth = Number.isInteger(payload.selectedWorkspace.maxDepth) ? payload.selectedWorkspace.maxDepth : 2;
+        const labels = ['Shell', 'Summary', 'Inner'];
+        els.layerControls.innerHTML = labels.slice(0, maxDepth + 1).map((label, index) => {
+          const className = 'layer-button' + (index === active ? ' active' : '');
+          return '<button type="button" class="' + className + '" data-layer="' + index + '">' + esc(label) + '</button>';
+        }).join('');
+
+        els.layerControls.querySelectorAll('[data-layer]').forEach((button) => {
+          button.addEventListener('click', () => zoomWorkspaceTo(Number(button.getAttribute('data-layer'))));
+        });
+      }
+
+      function layoutGraph(payload) {
+        const nodes = payload.workspaces || [];
+        const edges = payload.edges || [];
+        const width = 760;
+        const height = Math.max(300, Math.min(580, 180 + nodes.length * 28));
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radius = Math.max(90, Math.min(width, height) * 0.34);
+        const pointMap = new Map();
+
+        if (nodes.length === 1) {
+          pointMap.set(nodes[0].workspaceDir, { x: centerX, y: centerY });
+        } else if (nodes.length > 1) {
+          nodes.forEach((workspace, index) => {
+            const angle = (Math.PI * 2 * index) / nodes.length - Math.PI / 2;
+            const x = centerX + Math.cos(angle) * radius;
+            const y = centerY + Math.sin(angle) * radius;
+            pointMap.set(workspace.workspaceDir, { x, y });
+          });
+        }
+
+        const edgeSvg = edges
+          .filter((edge) => pointMap.has(edge.fromWorkspaceDir) && pointMap.has(edge.toWorkspaceDir))
+          .map((edge) => {
+            const from = pointMap.get(edge.fromWorkspaceDir);
+            const to = pointMap.get(edge.toWorkspaceDir);
+            const active = edge.fromWorkspaceDir === payload.selectedWorkspaceDir || edge.toWorkspaceDir === payload.selectedWorkspaceDir ? ' active' : '';
+            return '<line class="graph-link' + active + '" x1="' + from.x + '" y1="' + from.y + '" x2="' + to.x + '" y2="' + to.y + '"></line>';
+          })
+          .join('');
+
+        const nodeSvg = nodes.map((workspace) => {
+          const point = pointMap.get(workspace.workspaceDir) || { x: centerX, y: centerY };
+          const active = workspace.workspaceDir === payload.selectedWorkspaceDir ? ' active' : '';
+          const title = workspaceLabel(workspace);
+          const summary = workspace.summary || 'No summary';
+          const shortTitle = title.length > 16 ? title.slice(0, 15) + '…' : title;
+          return [
+            '<g class="graph-node' + active + '" data-workspace="' + esc(workspace.workspaceDir) + '" transform="translate(' + point.x + ',' + point.y + ')">',
+            '<rect x="-70" y="-28" width="140" height="56" rx="16" ry="16" fill="#0b1222" stroke="' + (workspace.workspaceDir === payload.selectedWorkspaceDir ? '#7be0a4' : '#27314a') + '"></rect>',
+            '<text class="graph-label" x="0" y="-2">' + esc(shortTitle) + '</text>',
+            '<text class="graph-sub" x="0" y="14">' + esc(summary.length > 24 ? summary.slice(0, 23) + '…' : summary) + '</text>',
+            '</g>',
+          ].join('');
+        }).join('');
+
+        els.graphWrap.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet" aria-label="Workspace graph">' +
+          '<rect x="0" y="0" width="' + width + '" height="' + height + '" fill="transparent"></rect>' +
+          edgeSvg +
+          nodeSvg +
+          '</svg>';
+
+        els.graphWrap.querySelectorAll('[data-workspace]').forEach((node) => {
+          node.addEventListener('click', () => loadWorkspace(node.getAttribute('data-workspace')));
+        });
+      }
+
       function renderConnections(payload) {
         const related = payload.edges.filter((edge) => edge.fromWorkspaceDir === payload.selectedWorkspaceDir || edge.toWorkspaceDir === payload.selectedWorkspaceDir);
         els.connectionList.innerHTML = related.length
@@ -522,6 +707,21 @@ function studioHtml(initialWorkspaceDir) {
         els.workspaceDetails.textContent = payload.selectedWorkspace
           ? payload.selectedWorkspace.title + ' · ' + payload.selectedWorkspace.summary
           : 'No workspace selected';
+        if (payload.selectedWorkspace) {
+          const active = Number.isInteger(payload.selectedWorkspace.activeLayer) ? payload.selectedWorkspace.activeLayer : 0;
+          const maxDepth = Number.isInteger(payload.selectedWorkspace.maxDepth) ? payload.selectedWorkspace.maxDepth : 2;
+          const labels = ['Shell', 'Summary', 'Inner'];
+          els.zoomState.textContent = 'Zoom ' + active + '/' + maxDepth + ' · ' + (labels[Math.min(active, labels.length - 1)] || 'Layer');
+        } else {
+          els.zoomState.textContent = 'Zoom unavailable';
+        }
+        const zoomable = payload.selectedWorkspace?.sourceKind === 'node';
+        els.zoomInBtn.disabled = !zoomable;
+        els.zoomOutBtn.disabled = !zoomable;
+        renderLayerControls(payload);
+        if (!els.newNodeParent.value.trim()) {
+          els.newNodeParent.value = payload.selectedWorkspaceDir ? parentFolder(payload.selectedWorkspaceDir) : '';
+        }
         els.sourceEditor.value = payload.sourceContent || '';
         els.previewWrap.innerHTML = payload.previewError
           ? '<div class="bad">' + esc(payload.previewError) + '</div>'
@@ -529,6 +729,7 @@ function studioHtml(initialWorkspaceDir) {
         renderWorkspaceCards(payload);
         renderWorkspacePicker(payload);
         renderConnectionForms(payload);
+        layoutGraph(payload);
         renderConnections(payload);
       }
 
@@ -553,8 +754,83 @@ function studioHtml(initialWorkspaceDir) {
           els.saveMessage.className = 'bad';
           return;
         }
-        els.saveMessage.textContent = 'Saved and rendered';
-        els.saveMessage.className = 'good';
+        els.saveMessage.textContent = payload.warning ? 'Saved, but preview warned: ' + payload.warning : 'Saved and rendered';
+        els.saveMessage.className = payload.warning ? 'bad' : 'good';
+        await loadWorkspace(payload.selectedWorkspaceDir);
+      }
+
+      async function zoomWorkspace(delta) {
+        if (!state.payload?.selectedWorkspaceDir) return;
+        const current = Number.isInteger(state.payload.selectedWorkspace?.activeLayer) ? state.payload.selectedWorkspace.activeLayer : 0;
+        const maxDepth = Number.isInteger(state.payload.selectedWorkspace?.maxDepth) ? state.payload.selectedWorkspace.maxDepth : 2;
+        const targetLayer = Math.max(0, Math.min(current + delta, maxDepth));
+        if (targetLayer === current) {
+          return;
+        }
+        const response = await fetch('/api/zoom', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspaceDir: state.payload.selectedWorkspaceDir,
+            delta,
+            targetLayer,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          els.saveMessage.textContent = payload.error || 'Zoom failed';
+          els.saveMessage.className = 'bad';
+          return;
+        }
+        els.saveMessage.textContent = payload.warning ? 'Zoom updated, but preview warned: ' + payload.warning : 'Zoom updated';
+        els.saveMessage.className = payload.warning ? 'bad' : 'good';
+        await loadWorkspace(payload.selectedWorkspaceDir);
+      }
+
+      async function zoomWorkspaceTo(targetLayer) {
+        if (!state.payload?.selectedWorkspaceDir) return;
+        const current = Number.isInteger(state.payload.selectedWorkspace?.activeLayer) ? state.payload.selectedWorkspace.activeLayer : 0;
+        if (targetLayer === current) return;
+        const response = await fetch('/api/zoom', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspaceDir: state.payload.selectedWorkspaceDir,
+            targetLayer,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          els.saveMessage.textContent = payload.error || 'Zoom failed';
+          els.saveMessage.className = 'bad';
+          return;
+        }
+        els.saveMessage.textContent = payload.warning ? 'Zoom updated, but preview warned: ' + payload.warning : 'Zoom updated';
+        els.saveMessage.className = payload.warning ? 'bad' : 'good';
+        await loadWorkspace(payload.selectedWorkspaceDir);
+      }
+
+      async function createWorkspaceNode(event) {
+        event.preventDefault();
+        const response = await fetch('/api/workspace-new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: els.newNodeTitle.value,
+            summary: els.newNodeSummary.value,
+            parentDir: els.newNodeParent.value || state.workspaceDir,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          els.saveMessage.textContent = payload.error || 'Create node failed';
+          els.saveMessage.className = 'bad';
+          return;
+        }
+        els.saveMessage.textContent = payload.warning ? 'Workspace node created, but preview warned: ' + payload.warning : 'Workspace node created';
+        els.saveMessage.className = payload.warning ? 'bad' : 'good';
+        els.newNodeTitle.value = '';
+        els.newNodeSummary.value = '';
         await loadWorkspace(payload.selectedWorkspaceDir);
       }
 
@@ -580,8 +856,36 @@ function studioHtml(initialWorkspaceDir) {
         await loadWorkspace(payload.selectedWorkspaceDir || state.workspaceDir);
       }
 
+      async function clearCurrentWorkspace() {
+        if (!state.payload?.selectedWorkspaceDir) return;
+        const label = workspaceLabel(state.payload.selectedWorkspace);
+        const confirmed = window.confirm('Clear ' + label + '? This resets the workspace contents and removes its connections.');
+        if (!confirmed) return;
+
+        const response = await fetch('/api/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspaceDir: state.payload.selectedWorkspaceDir,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          els.saveMessage.textContent = payload.error || 'Clear failed';
+          els.saveMessage.className = 'bad';
+          return;
+        }
+        els.saveMessage.textContent = 'Workspace cleared';
+        els.saveMessage.className = 'good';
+        await loadWorkspace(payload.selectedWorkspaceDir);
+      }
+
       els.workspacePicker.addEventListener('change', () => loadWorkspace(els.workspacePicker.value));
+      els.zoomOutBtn.addEventListener('click', () => zoomWorkspace(-1));
+      els.zoomInBtn.addEventListener('click', () => zoomWorkspace(1));
       els.saveBtn.addEventListener('click', saveSource);
+      els.clearBtn.addEventListener('click', clearCurrentWorkspace);
+      els.newNodeForm.addEventListener('submit', createWorkspaceNode);
       els.connectForm.addEventListener('submit', createConnection);
 
       const params = new URLSearchParams(window.location.search);
@@ -637,16 +941,85 @@ async function handleRequest(req, res, initialWorkspaceDir) {
     }
 
     await writeText(snapshot.sourceFile, content);
+    let warning = null;
     try {
       await renderWorkspacePreview(workspaceDir);
     } catch (error) {
-      return sendJson(res, 500, {
-        error: error instanceof Error ? error.message : String(error),
-        selectedWorkspaceDir: workspaceDir,
-      });
+      warning = error instanceof Error ? error.message : String(error);
     }
 
-    return sendJson(res, 200, { ok: true, selectedWorkspaceDir: workspaceDir });
+    return sendJson(res, 200, { ok: true, selectedWorkspaceDir: workspaceDir, warning });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/zoom') {
+    const body = await readRequestBody(req);
+    const workspaceDir = body.workspaceDir || selectedWorkspaceDir;
+    const hasTarget = Number.isInteger(body.targetLayer);
+    const hasDelta = Number.isInteger(body.delta);
+
+    if (!workspaceDir || (!hasTarget && !hasDelta)) {
+      return sendJson(res, 400, { error: 'workspaceDir and a zoom target are required' });
+    }
+
+    try {
+      const snapshot = await readWorkspaceSnapshot(workspaceDir);
+      const active = Number.isInteger(snapshot?.workspace?.node?.activeLayer) ? snapshot.workspace.node.activeLayer : 0;
+      const maxDepth = Number.isInteger(snapshot?.workspace?.node?.maxDepth) ? snapshot.workspace.node.maxDepth : 2;
+      const targetLayer = hasTarget
+        ? Math.max(0, Math.min(body.targetLayer, maxDepth))
+        : Math.max(0, Math.min(active + body.delta, maxDepth));
+      await setWorkspaceZoomLevel(workspaceDir, targetLayer);
+      let warning = null;
+      try {
+        await renderWorkspacePreview(workspaceDir);
+      } catch (error) {
+        warning = error instanceof Error ? error.message : String(error);
+      }
+      return sendJson(res, 200, { ok: true, selectedWorkspaceDir: workspaceDir, targetLayer, warning });
+    } catch (error) {
+      return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/workspace-new') {
+    const body = await readRequestBody(req);
+    try {
+      const selectedWorkspaceDir = await createWorkspaceNode({
+        title: body.title,
+        summary: body.summary,
+        parentDir: body.parentDir,
+      });
+      let warning = null;
+      try {
+        await renderWorkspacePreview(selectedWorkspaceDir);
+      } catch (error) {
+        warning = error instanceof Error ? error.message : String(error);
+      }
+      return sendJson(res, 200, { ok: true, selectedWorkspaceDir, warning });
+    } catch (error) {
+      return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/clear') {
+    const body = await readRequestBody(req);
+    const workspaceDir = body.workspaceDir || selectedWorkspaceDir;
+    if (!workspaceDir) {
+      return sendJson(res, 400, { error: 'workspaceDir is required' });
+    }
+
+    try {
+      const result = await clearWorkspace(workspaceDir);
+      let warning = null;
+      try {
+        await renderWorkspacePreview(workspaceDir);
+      } catch (error) {
+        warning = error instanceof Error ? error.message : String(error);
+      }
+      return sendJson(res, 200, { ok: true, selectedWorkspaceDir: result.workspaceDir, warning });
+    } catch (error) {
+      return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   if (req.method === 'POST' && url.pathname === '/api/connect') {

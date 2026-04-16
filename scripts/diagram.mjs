@@ -7,6 +7,8 @@ import {
   describeWorkspaceSnapshot,
   formatWorkspaceStatusCard,
   chooseRegisteredWorkspace,
+  clearWorkspace,
+  confirmWorkspaceClear,
   confirmWorkspaceDeletion,
   deleteWorkspace,
   ensureWorkspace,
@@ -30,11 +32,12 @@ function printHelp() {
   console.log(`Usage:
   diagram
 
-Interactive launcher for workspace selection, create, delete, and list actions.
+Interactive launcher for workspace selection, create, clear, delete, and list actions.
 
 Actions:
   open     Search saved workspaces, open one, and launch the studio
   new      Browse folders, create a workspace, and launch the studio
+  clear    Reset a workspace to a fresh starter state and relaunch the studio
   delete   Remove a workspace from disk and unregister it
   list     Show initialized workspaces
   exit     Close the launcher
@@ -89,6 +92,22 @@ async function deleteWorkspaceAction(currentWorkspace) {
   return currentWorkspace;
 }
 
+async function clearWorkspaceAction(currentWorkspace) {
+  const workspaceDir = await ensureActiveWorkspace(currentWorkspace);
+  if (!workspaceDir) {
+    return currentWorkspace;
+  }
+
+  const confirmed = await confirmWorkspaceClear(workspaceDir);
+  if (!confirmed) {
+    return currentWorkspace;
+  }
+
+  const result = await clearWorkspace(workspaceDir);
+  console.log(`Cleared workspace: ${result.workspaceDir}`);
+  return result.workspaceDir;
+}
+
 async function openStudio(workspaceDir) {
   await startWorkspaceSession(workspaceDir);
 }
@@ -122,6 +141,7 @@ while (true) {
     choices: [
       { value: 'open', name: 'Open workspace', description: 'Search saved workspaces.' },
       { value: 'new', name: 'Create workspace', description: 'Make a new workspace folder.' },
+      { value: 'clear', name: 'Clear workspace', description: 'Reset the current workspace.' },
       { value: 'delete', name: 'Delete workspace', description: 'Remove a registered workspace.' },
       { value: 'list', name: 'List workspaces', description: 'Show saved workspaces.' },
       { value: 'exit', name: 'Exit', description: 'Close the launcher.' },
@@ -160,6 +180,16 @@ while (true) {
     const snapshot = await readWorkspaceSnapshot(activeWorkspace);
     printWorkspaceDetails(activeWorkspace, result.sourceResult, describeWorkspaceSnapshot(snapshot));
     await openStudio(activeWorkspace);
+    continue;
+  }
+
+  if (choice === 'clear') {
+    activeWorkspace = await clearWorkspaceAction(activeWorkspace);
+    if (activeWorkspace) {
+      const snapshot = await readWorkspaceSnapshot(activeWorkspace);
+      printWorkspaceDetails(activeWorkspace, { targetFile: snapshot.sourceFile }, describeWorkspaceSnapshot(snapshot));
+      await openStudio(activeWorkspace);
+    }
     continue;
   }
 

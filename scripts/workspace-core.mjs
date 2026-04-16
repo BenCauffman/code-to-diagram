@@ -11,6 +11,7 @@ import {
   defaultNodeWorkspace,
   DEFAULT_NODE_MAX_DEPTH,
   formatWorkspaceStatusCard,
+  slugify,
   readNodeWorkspace,
   bumpWorkspaceLayer,
   writeNodeWorkspace,
@@ -225,6 +226,9 @@ export async function readWorkspaceSummaries() {
 }
 
 export async function addWorkspaceConnection(fromWorkspaceDir, toWorkspaceDir, label = '') {
+  if (!fromWorkspaceDir || !toWorkspaceDir) {
+    throw new Error('fromWorkspaceDir and toWorkspaceDir are required');
+  }
   const from = path.resolve(expandHome(fromWorkspaceDir));
   const to = path.resolve(expandHome(toWorkspaceDir));
   if (from === to) {
@@ -248,6 +252,81 @@ export async function addWorkspaceConnection(fromWorkspaceDir, toWorkspaceDir, l
   });
   await writeGraph(graph);
   return graph;
+}
+
+export async function clearWorkspace(workspaceDir) {
+  const normalized = path.resolve(expandHome(workspaceDir));
+  await fs.mkdir(normalized, { recursive: true });
+
+  const snapshot = await readWorkspaceSnapshot(normalized);
+  const title = snapshot.workspace?.node?.title?.trim() || titleize(path.basename(normalized));
+
+  if (snapshot.sourceKind === 'node') {
+    await writeNodeWorkspace(snapshot.sourceFile, defaultNodeWorkspace(normalized, { title }));
+  } else {
+    await fs.writeFile(
+      snapshot.sourceFile,
+      `# System Diagram\n\n\`\`\`mermaid\nflowchart TD\n  A[Start here] --> B[Edit this diagram]\n\`\`\`\n`,
+      'utf8',
+    );
+  }
+
+  const graph = await readGraph();
+  graph.edges = Array.isArray(graph.edges)
+    ? graph.edges.filter((edge) => {
+      const from = path.resolve(expandHome(edge.fromWorkspaceDir ?? ''));
+      const to = path.resolve(expandHome(edge.toWorkspaceDir ?? ''));
+      return from !== normalized && to !== normalized;
+    })
+    : [];
+  await writeGraph(graph);
+
+  return {
+    workspaceDir: normalized,
+    sourceFile: snapshot.sourceFile,
+    sourceKind: snapshot.sourceKind,
+    workspace: snapshot.sourceKind === 'node'
+      ? await readNodeWorkspace(snapshot.sourceFile)
+      : null,
+    graph,
+  };
+}
+
+export async function createWorkspaceNode({ title, summary, parentDir } = {}) {
+  const baseDir = parentDir ? path.resolve(expandHome(parentDir)) : path.join(os.homedir(), 'Projects', 'diagrams');
+  const workspaceTitle = String(title ?? '').trim() || 'New Node';
+  const slugBase = slugify(workspaceTitle);
+  let candidate = path.join(baseDir, slugBase);
+  let counter = 2;
+
+  while (await pathExists(candidate)) {
+    candidate = path.join(baseDir, `${slugBase}-${counter}`);
+    counter += 1;
+  }
+
+  const result = await ensureWorkspace(candidate, { renderPreview: false });
+  const snapshot = await readWorkspaceSnapshot(result.workspaceDir);
+  if (snapshot.sourceKind === 'node' && snapshot.workspace) {
+    snapshot.workspace.node.title = workspaceTitle;
+    if (summary?.trim()) {
+      snapshot.workspace.node.summary = summary.trim();
+    }
+    await writeNodeWorkspace(snapshot.sourceFile, snapshot.workspace);
+  }
+
+  return result.workspaceDir;
+}
+
+export async function setWorkspaceZoomLevel(workspaceDir, targetLayer) {
+  const snapshot = await readWorkspaceSnapshot(workspaceDir);
+  if (snapshot.sourceKind !== 'node') {
+    throw new Error('zooming is only available for node workspaces');
+  }
+
+  const current = Number.isInteger(snapshot?.workspace?.node?.activeLayer) ? snapshot.workspace.node.activeLayer : 0;
+  const delta = targetLayer - current;
+  const workspace = await bumpWorkspaceLayer(snapshot.sourceFile, delta);
+  return { ...snapshot, workspace };
 }
 
 export function startWorkspaceSession(workspaceDir) {
@@ -312,7 +391,7 @@ async function ensureLegacyWorkspaceSource(workspaceDir, targetFile) {
   return { created: true, targetFile };
 }
 
-export async function ensureWorkspace(workspaceDir) {
+export async function ensureWorkspace(workspaceDir, { renderPreview = true } = {}) {
   const normalized = path.resolve(expandHome(workspaceDir));
   await fs.mkdir(normalized, { recursive: true });
 
@@ -328,7 +407,7 @@ export async function ensureWorkspace(workspaceDir) {
 
   await fs.mkdir(path.join(normalized, DEFAULT_FILES.archiveDir), { recursive: true });
   const outputFile = path.join(normalized, path.basename(process.env.DIAGRAM_OUTPUT ?? DEFAULT_FILES.output));
-  if (sourceResult.created || !(await pathExists(outputFile))) {
+  if (renderPreview && (sourceResult.created || !(await pathExists(outputFile)))) {
     renderStarterDiagram(normalized);
   }
   await addWorkspaceToRegistry(normalized);
@@ -439,6 +518,13 @@ export async function promptForWorkspaceSelection() {
 export async function confirmWorkspaceDeletion(workspaceDir) {
   return confirm({
     message: `Delete workspace ${workspaceDir}? This removes the folder and unregisters it.`,
+    default: false,
+  });
+}
+
+export async function confirmWorkspaceClear(workspaceDir) {
+  return confirm({
+    message: `Clear workspace ${workspaceDir}? This resets the contents and removes its connections.`,
     default: false,
   });
 }

@@ -2,7 +2,7 @@
 
 `Diagram as Code` keeps one editable node workspace file and one generated image in sync, inside a live studio that also shows the full workspace graph.
 
-Think of each workspace as a saved node model plus its rendered image. Opening a workspace takes you straight into the live workspace studio, which shows the editor, preview, workspace list, and connections together.
+Think of each workspace as a saved node model plus its rendered image. Opening a workspace takes you straight into the live workspace studio, which shows the editor, preview, workspace list, layer controls, and connections together.
 
 ## Files
 
@@ -15,7 +15,7 @@ Think of each workspace as a saved node model plus its rendered image. Opening a
 1. Open a workspace.
 2. Edit `workspace.node.json`.
 3. Watch `diagram.png` update alongside the source in the live studio.
-4. Use the workspace list to switch nodes and the connection form to link them together.
+4. Use the workspace graph or workspace list to switch nodes and the connection form to link them together.
 5. Keep iterating in the node workspace as the preview refreshes.
 
 ## Archiving
@@ -24,7 +24,7 @@ The studio stays in sync automatically because opening the workspace starts the 
 
 ## Workspace Config
 
-Run `diagram-workspace open` to search saved workspaces, `diagram-workspace new` to browse folders and create one, or `diagram-workspace delete` to remove one. It writes a `.diagram-as-code.env` file into the workspace you are configuring.
+Run `diagram-workspace open` to search saved workspaces, `diagram-workspace new` to browse folders and create one, `diagram-workspace clear` to reset one, or `diagram-workspace delete` to remove one. It writes a `.diagram-as-code.env` file into the workspace you are configuring.
 That bootstrap step also creates the starter `workspace.node.json`, makes `past-diagrams/`, and renders the initial output file so the workspace is ready to preview immediately.
 Run `diagram` when you want one interactive menu for workspace selection plus create, open, delete, and list actions.
 

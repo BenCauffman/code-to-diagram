@@ -5,7 +5,9 @@ import process from 'node:process';
 import {
   describeWorkspaceSnapshot,
   confirmWorkspaceDeletion,
+  confirmWorkspaceClear,
   chooseRegisteredWorkspace,
+  clearWorkspace,
   deleteWorkspace,
   ensureWorkspace,
   isProtectedWorkspace,
@@ -23,12 +25,14 @@ function printHelp() {
   diagram-workspace
   diagram-workspace open
   diagram-workspace new
+  diagram-workspace clear
   diagram-workspace delete
   diagram-workspace list
 
 Commands:
   open     Search saved workspaces, open one, and launch the studio
   new      Browse folders, create a workspace, and launch the studio
+  clear    Reset a workspace to a fresh starter state and relaunch the studio
   delete   Remove a workspace from disk and unregister it
   list     Show initialized workspaces
 
@@ -78,6 +82,19 @@ async function deleteWorkspaceFlow() {
   console.log(`Deleted workspace: ${deleted}`);
 }
 
+async function clearWorkspaceFlow() {
+  const selected = await promptForWorkspaceSelection();
+  if (!selected) return;
+
+  const confirmed = await confirmWorkspaceClear(selected);
+  if (!confirmed) return;
+
+  const result = await clearWorkspace(selected);
+  const snapshot = await readWorkspaceSnapshot(result.workspaceDir);
+  printWorkspaceSummary(result.workspaceDir, { targetFile: snapshot.sourceFile }, describeWorkspaceSnapshot(snapshot));
+  await startWorkspaceSession(result.workspaceDir);
+}
+
 async function createWorkspace() {
   const targetDir = await promptForWorkspaceFolder(path.join(os.homedir(), 'Projects', 'diagrams'));
   if (!targetDir) return;
@@ -96,6 +113,8 @@ try {
     await openWorkspace();
   } else if (command === 'new') {
     await createWorkspace();
+  } else if (command === 'clear') {
+    await clearWorkspaceFlow();
   } else if (command === 'delete' || command === 'remove' || command === 'rm') {
     await deleteWorkspaceFlow();
   } else if (command === '--help' || command === '-h' || command === 'help') {

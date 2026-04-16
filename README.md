@@ -14,8 +14,8 @@ Each workspace is a saved node model plus its rendered image, so you can come ba
 ```
 
 3. Make sure `~/bin` is on your `PATH` if your shell has not loaded it yet.
-4. Use `diagram-workspace open` to search saved workspaces, `diagram-workspace new` to browse folders and create one, or `diagram-workspace delete` to remove one.
-5. Opening or creating a workspace now launches the live studio right away, with the source on one side, the rendered preview on the other, and the workspace graph alongside it.
+4. Use `diagram-workspace open` to search saved workspaces, `diagram-workspace new` to browse folders and create one, `diagram-workspace clear` to reset one, or `diagram-workspace delete` to remove one.
+5. Opening or creating a workspace now launches the live studio right away, with the source on one side, the rendered preview on the other, and a visual workspace graph alongside it.
 6. Use `diagram` for the interactive launcher that can open workspaces, create one, delete one, or list saved workspaces.
 
 ## Requirements
@@ -44,6 +44,7 @@ Create, open, or delete a workspace:
 ```bash
 diagram-workspace open
 diagram-workspace new
+diagram-workspace clear
 diagram-workspace delete
 diagram-workspace list
 ```
@@ -56,7 +57,7 @@ diagram
 
 If you forget the available commands, run `diagram --help` or `diagram-workspace --help`.
 
-Opening a workspace launches the live studio so you can edit the source, see the preview update, and connect workspaces together from one place.
+Opening a workspace launches the live studio so you can edit the source, click layer chips to zoom between shell/summary/inner, see the preview update, and connect workspaces together from one place.
 
 ## Example Mermaid Diagram
 
